@@ -3,7 +3,7 @@
     "CommandGenerator": {
       "commandName": "Executable",
       "executablePath": "C:\\dev\\CommandGenerator\\CommandGenerator.exe",
-      "commandLineArgs": "test.json"
+      "commandLineArgs": "-t AddOrder"
     }
   }
 }
