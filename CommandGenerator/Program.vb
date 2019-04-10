@@ -1,134 +1,91 @@
-
-Imports System.CodeDom
-Imports System.CodeDom.Compiler
 Imports System.IO
-Imports System.Text
 Imports System.Text.RegularExpressions
-Imports System.Threading
-Imports Newtonsoft.Json
+Imports CommandGenerator.Options
+Imports CommandLine
 
 Module Program
 
-    Private _programState As ProgramState
-
     Sub Main(args As String())
         If CheckArgs(args)
-            SetProgramState(args)
-            Select _programState
-                Case ProgramState.GenerateTemplate
-                    Console.WriteLine("Creating template file...")
-                    Console.WriteLine(args(1))
-                    Dim classname = "<classname>"
-                    Dim filename = "command"
-                    Dim numberOfCommandFields = 1
-                    If args.Length = 2 Or args.Length = 3
-                        Dim result As Integer
-                        If Integer.TryParse(args(1), result)
-                            numberOfCommandFields = result
-                        End If
-                    End If
-                    If args.Length = 3
-                        classname = args(2)
-                        filename = args(2)
-                    End If
-                    Dim commandDefintion As New CommandDefinition With {
-                        .ClassName = classname + "Command",
-                        .NameSpaceName = "<namespacename>",
-                        .AggregateType = "<aggregatetype>",
-                        .CommandFields = New List(Of CommandField)
-                    }
-                    For i = 0 To numberOfCommandFields - 1
-                        commandDefintion.CommandFields.Add(New CommandField() With {
-                                .DataType = "<datatype>",
-                                .Name = "<name>"
-                            }
-                        )
-                    Next
-                    Dim jsonString = JsonConvert.SerializeObject(commandDefintion, Formatting.Indented)
-                    Dim buffer() = Encoding.ASCII.GetBytes(jsonString)
-                    Using inputStream = File.Create(Environment.CurrentDirectory + "/"+filename+"Command.json")  
-                        inputStream.Write(buffer, 0, buffer.Length)
-                    End Using
-                    Console.Write("Created" + filename + "Command.json in current directory.")
-                Case ProgramState.GenerateSourceFile
-                    If CheckForValidJsonFile(args(0))
-                        Dim commandDefinition = CreateCommandDefinition(args(0))
-                        GenerateVBCode(New CommandGenerator(commandDefinition).BuildCompileUnit(), commandDefinition.ClassName + ".vb")
-                    End If
-            End Select
+            Dim res As Boolean = Parser.Default.ParseArguments(Of GenerateOptions, TemplateOptions)(args) _ 
+                .MapResult(Function(opts As GenerateOptions) Runner(opts, AddressOf GenerateVbClass),
+                           Function(opts As TemplateOptions) Runner(opts, AddressOf CreateTemplateFile),
+                           Function(errs As IEnumerable(Of [Error])) False)
         End If
     End Sub
+
+    Function Runner(Of T, TResult)(options As T,func As Func(Of T, TResult)) As TResult
+        Return func(options)
+    End Function
+
+    Private Function CreateTemplateFile(templateOptions As TemplateOptions) As Boolean
+        Console.ForegroundColor = ConsoleColor.DarkCyan
+        Console.WriteLine("Creating template file...")
+        Dim generator As New Core.TemplateGenerator(templateOptions.Name, templateOptions.NumberOfCustomPropertys)
+        generator.CreateTemplate()
+        Console.Write("Created " + templateOptions.Name + "Command.json in current directory.")
+        Console.ResetColor()
+        Return True
+    End Function
+
+    Private Function GenerateVbClass(generateOptions As GenerateOptions) As Boolean
+        If CheckForValidJsonFile(generateOptions.File)
+            Console.ForegroundColor = ConsoleColor.DarkCyan
+            Dim generator As New Core.CommandGenerator(generateOptions.File)
+            generator.GenerateVBCode(generateOptions.File.Split("."c)(0) + ".vb")
+            Console.ResetColor()
+            Return True
+        End If
+        Return False
+    End Function
 
     Private Function CheckForValidJsonFile(filename As String) As Boolean
         Const pattern = "([a-zA-Z0-9]*\.json){1}"
         Dim matchResult = Regex.Match(filename, pattern)
         If matchResult.Success
             If File.Exists(Environment.CurrentDirectory + "/" + filename)
-                Console.WriteLine("Succesfully found json file")
+                Console.ForegroundColor = ConsoleColor.DarkCyan
+                Console.WriteLine("Succesfully found json file") 
+                Console.ResetColor()
                 Return True
             Else 
+                Console.ForegroundColor = ConsoleColor.Red
                 Console.Write("Json file does not exist in current directory. ")
             End If
         Else
+            Console.ForegroundColor = ConsoleColor.Red
             Console.Write("Invalid file extension, please add a json file. or use -t to generate template file")           
         End If 
+        Console.ResetColor()
         Return False
     End Function
-
-    Private Function CreateCommandDefinition(filename As String) As CommandDefinition
-        Return JsonConvert.DeserializeObject(Of CommandDefinition)(GetJson(filename))
-    End Function
-
-    Private Function GetJson(filename As String) As String
-        Dim json = ""
-        Using stream  = File.Open(Environment.CurrentDirectory + "/" + filename, FileMode.Open)
-            Using streamReader = NEw StreamReader(stream, Encoding.UTF8)
-                While Not streamReader.EndOfStream
-                    json += streamReader.ReadLine()
-                End While
-            End Using
-        End Using
-        Return json
-    End Function
-
-    SUb SetProgramState(args() As String)
-        Select args(0)
-            Case "-t"
-                _programState = ProgramState.GenerateTemplate
-            Case Else
-                _programState = ProgramState.GenerateSourceFile  
-        End Select     
-    End SUb
 
     Private Function CheckArgs(args() As String) As Boolean
         If args.Length > 0
             Return True
         Else 
+            Console.ForegroundColor = ConsoleColor.DarkCyan          
             Console.WriteLine("")
-            Console.WriteLine("To use the commandgenerator please execute following commands:")
+            Console.WriteLine("  ********************************************************************")
+            Console.WriteLine("  * Welcome to command generator                                     *")
+            Console.WriteLine("  ********************************************************************")
             Console.WriteLine("")
-            Console.WriteLine("commandgenerator -t")
+            Console.WriteLine("  General help: ")
             Console.WriteLine("")
-            Console.WriteLine("For a new template command file.")
+            Console.ForegroundColor = ConsoleColor.Green   
+            Console.WriteLine("  commandgenerator template -n command")
+            Console.ForegroundColor = ConsoleColor.DarkCyan  
             Console.WriteLine("")
-            Console.WriteLine("commandgenereator command.json")
+            Console.WriteLine("  Will create a new template json file, after ")
+            Console.WriteLine("  editing the properties run:")
             Console.WriteLine("")
-            Console.WriteLine("To generate command.vb")
+            Console.ForegroundColor = ConsoleColor.Green  
+            Console.WriteLine("  commandgenerator generate command.json")
+            Console.ForegroundColor = ConsoleColor.DarkCyan  
+            Console.WriteLine("")
+            Console.WriteLine("  To generate command.vb")
+            Console.ResetColor()
             Return False
         End If 
     End Function
-
-    Private Sub GenerateVBCode(compileUnit As CodeCompileUnit, fileName As String)
-        Dim provider As CodeDomProvider
-        provider = CodeDomProvider.CreateProvider("VisualBasic")
-        Dim options As New CodeGeneratorOptions()
-        Dim sourceWriter As New StreamWriter(fileName)
-        Try
-            provider.GenerateCodeFromCompileUnit( _
-                compileUnit, sourceWriter, options)
-        Finally
-            sourceWriter.Dispose()
-        End Try
-
-    End Sub
 End Module
