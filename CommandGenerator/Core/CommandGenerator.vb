@@ -158,18 +158,11 @@ Namespace Core
             Return Nothing
         End Function
 
-        Public Sub GenerateVBCode(fileName As String)
-            Dim provider As CodeDomProvider
-            provider = CodeDomProvider.CreateProvider("VisualBasic")
-            Dim options As New CodeGeneratorOptions()
-            Dim sourceWriter As New StreamWriter(fileName)
-            Try
-                provider.GenerateCodeFromCompileUnit( _
-                    BuildCompileUnit(), sourceWriter, options)
-            Finally
-                sourceWriter.Dispose()
-            End Try
-
+        Public Sub GenerateCode(fileName As String)
+            Dim provider = CodeDomProvider.CreateProvider("VisualBasic")
+            Using sourceWriter = New StreamWriter(fileName)
+                provider.GenerateCodeFromCompileUnit(BuildCompileUnit(), sourceWriter, New CodeGeneratorOptions())
+            End Using
         End Sub
     End Class
 End NameSpace

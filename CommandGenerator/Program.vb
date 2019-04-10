@@ -6,6 +6,10 @@ Imports CommandLine
 Module Program
 
     Sub Main(args As String())
+        'TODO: Make command base class configurable
+        'TODO: Translation of the commanddefinition class should be more flexible
+        'The command generator should act as an controller between the CommandDefinition, CodeCompileUnit and the creation of the sourcecodefile (GenerateCode)
+        'Due to the configurable base class, we need to aim for a more flexible creation of the CodeCompileUnit
         If CheckArgs(args)
             Dim res As Boolean = Parser.Default.ParseArguments(Of GenerateOptions, TemplateOptions)(args) _ 
                 .MapResult(Function(opts As GenerateOptions) Runner(opts, AddressOf GenerateVbClass),
@@ -32,7 +36,7 @@ Module Program
         If CheckForValidJsonFile(generateOptions.File)
             Console.ForegroundColor = ConsoleColor.DarkCyan
             Dim generator As New Core.CommandGenerator(generateOptions.File)
-            generator.GenerateVBCode(generateOptions.File.Split("."c)(0) + ".vb")
+            generator.GenerateCode(generateOptions.File.Split("."c)(0) + ".vb")
             Console.ResetColor()
             Return True
         End If
